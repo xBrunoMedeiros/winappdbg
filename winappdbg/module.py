@@ -481,20 +481,20 @@ class Module (object):
                 pass
             try:
                 try:
-                    success = win32.SymLoadModule64(
+                    success = win32.SymLoadModule(
                         hProcess, hFile, None, None, BaseOfDll, SizeOfDll)
                 except WindowsError:
                     success = 0
                 if not success:
-                    ImageName = self.get_filename()
-                    success = win32.SymLoadModule64(
+                    ImageName = self.get_filename().encode('cp1252') + b'\x00'
+                    success = win32.SymLoadModule(
                         hProcess, None, ImageName, None, BaseOfDll, SizeOfDll)
                 if success:
                     try:
-                        win32.SymEnumerateSymbols64(
+                        win32.SymEnumerateSymbols(
                             hProcess, BaseOfDll, Enumerator)
                     finally:
-                        win32.SymUnloadModule64(hProcess, BaseOfDll)
+                        win32.SymUnloadModule(hProcess, BaseOfDll)
             finally:
                 win32.SymCleanup(hProcess)
         except WindowsError as e:
@@ -596,11 +596,11 @@ class Module (object):
         """
         result = None
         symbols = self.get_symbols()
-        symbols.sort()
-        for SymbolAddress, SymbolName, SymbolSize in symbols:
+        symbols.sort(key=lambda x: x[1])
+        for SymbolName, SymbolAddress, SymbolSize in symbols:
             if SymbolAddress > address:
-                break
-            result = (SymbolName, SymbolAddress, SymbolSize)
+               break
+            result = (SymbolName.decode('cp1252'), SymbolAddress, SymbolSize)
         return result
 
 #------------------------------------------------------------------------------
@@ -661,7 +661,7 @@ class Module (object):
             if symbol:
                 (SymbolName, SymbolAddress, SymbolSize) = symbol
                 new_offset = address - SymbolAddress
-                if new_offset <= offset:
+                if SymbolAddress <= address <= SymbolAddress + SymbolSize and new_offset <= offset:
                     function    = SymbolName
                     offset      = new_offset
         except WindowsError as e:
